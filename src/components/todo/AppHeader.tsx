@@ -1,4 +1,4 @@
-import { Palette } from "lucide-react";
+import { Palette, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -34,13 +34,16 @@ export function AppHeader({
         <button
           type="button"
           onClick={scrollToHome}
-          className="min-w-0 text-left transition hover:opacity-90"
+          className="min-w-0 text-left transition hover:opacity-90 flex items-center gap-2"
           aria-label="Go to home"
         >
           <div className="flex items-center gap-1 text-2xl tracking-tight">
             <span className="font-semibold text-foreground">Study</span>
             <span className="font-bold text-primary">Flow</span>
           </div>
+          <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-bold">
+            <ShieldCheck className="h-3 w-3" /> Encrypted & Shielded
+          </span>
         </button>
       </div>
       <div className="flex items-center gap-2">

@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Key, Trash2, ArrowRight, Brain } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Send, Sparkles, Key, Trash2, ArrowRight, Brain, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { type Task, type StudyLog } from "@/lib/todo/types";
+import { inspectPrompt, aiRateLimiter } from "@/lib/security/firewall";
 
 interface Props {
   tasks: Task[];
@@ -166,8 +167,31 @@ It is completely normal to feel fatigued. Studying is a marathon, not a sprint. 
   };
 
   const handleSend = async (textToSend?: string) => {
-    const messageText = textToSend || input;
-    if (!messageText.trim()) return;
+    const rawMessageText = textToSend || input;
+    if (!rawMessageText.trim()) return;
+
+    // Rate Limiting Check
+    if (!aiRateLimiter.tryConsume()) {
+      const waitSec = aiRateLimiter.waitTimeSeconds();
+      toast.warning(`Rate limit reached. Please wait ${waitSec}s before sending another prompt.`);
+      return;
+    }
+
+    // Prompt Security Firewall Inspection
+    const firewallResult = inspectPrompt(rawMessageText);
+    if (!firewallResult.isSafe) {
+      toast.error(`Security Guard Blocked Input: ${firewallResult.reason}`);
+      setMessages((prev: Message[]) => [
+        ...prev,
+        {
+          role: "model",
+          content: `⚠️ **Security Guard Warning:** Prompt request was blocked.\n\n*Reason:* ${firewallResult.reason}`,
+        },
+      ]);
+      return;
+    }
+
+    const messageText = firewallResult.sanitized;
 
     // Add user message
     const newMessages = [...messages, { role: "user" as const, content: messageText }];
@@ -179,7 +203,7 @@ It is completely normal to feel fatigued. Studying is a marathon, not a sprint. 
       // Simulation mode delay
       setTimeout(() => {
         const simResponse = getSimulatedResponse(messageText);
-        setMessages((prev) => [...prev, { role: "model" as const, content: simResponse }]);
+        setMessages((prev: Message[]) => [...prev, { role: "model" as const, content: simResponse }]);
         setLoading(false);
       }, 800);
       return;
@@ -242,11 +266,11 @@ Always give practical, clear, structured study tips. Use markdown, emojis, bulle
         data.candidates?.[0]?.content?.parts?.[0]?.text ||
         "I received an empty response. Please try again.";
 
-      setMessages((prev) => [...prev, { role: "model" as const, content: responseText }]);
+      setMessages((prev: Message[]) => [...prev, { role: "model" as const, content: responseText }]);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "An error occurred.");
-      setMessages((prev) => [
+      setMessages((prev: Message[]) => [
         ...prev,
         {
           role: "model" as const,
@@ -268,7 +292,12 @@ Always give practical, clear, structured study tips. Use markdown, emojis, bulle
               <Brain className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-foreground">AI Study Buddy</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">AI Study Buddy</h3>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20 font-medium">
+                  <ShieldCheck className="h-3 w-3" /> Shield Active
+                </span>
+              </div>
               <p className="text-[10px] text-muted-foreground font-semibold">
                 {isKeySaved ? "🟢 Active via Gemini 1.5 Flash" : "🟡 Simulation Mode"}
               </p>
@@ -279,7 +308,7 @@ Always give practical, clear, structured study tips. Use markdown, emojis, bulle
 
         {/* Message History */}
         <div className="flex-1 overflow-y-auto space-y-4 px-1 pb-3 scrollbar-thin">
-          {messages.map((m, idx) => {
+          {messages.map((m: Message, idx: number) => {
             const isAI = m.role === "model";
             return (
               <div
@@ -347,8 +376,8 @@ Always give practical, clear, structured study tips. Use markdown, emojis, bulle
         <div className="flex items-center gap-2 border-t border-border/10 pt-3">
           <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && handleSend()}
             placeholder="Ask your study buddy anything..."
             className="flex-1 rounded-xl h-10 border-border/60 text-xs bg-background/50"
             disabled={loading}
@@ -404,7 +433,7 @@ Always give practical, clear, structured study tips. Use markdown, emojis, bulle
                 type="password"
                 placeholder="AIzaSy..."
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
                 className="text-xs rounded-xl"
               />
               <Button type="submit" className="w-full text-xs rounded-xl font-bold cursor-pointer">

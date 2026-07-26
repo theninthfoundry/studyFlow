@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Link2,
@@ -32,6 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SUBJECTS, SUBJECT_COLORS, type Subject, type SubjectMaterial } from "@/lib/todo/types";
+import { safeUrl } from "@/lib/security/sanitizer";
+import { inspectInput } from "@/lib/security/firewall";
 
 interface Props {
   materials: SubjectMaterial[];
@@ -96,7 +98,7 @@ export function ResourcesPanel({ materials, onAddMaterial, onDeleteMaterial }: P
 
         // Compress image to 70% quality JPEG
         const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-        setForm((prev) => ({ ...prev, value: dataUrl }));
+        setForm((prev: typeof form) => ({ ...prev, value: dataUrl }));
       };
       img.src = event.target?.result as string;
     };
@@ -105,6 +107,12 @@ export function ResourcesPanel({ materials, onAddMaterial, onDeleteMaterial }: P
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const titleCheck = inspectInput(form.title);
+    if (!titleCheck.isSafe) {
+      toast.error(`Security Warning: ${titleCheck.reason}`);
+      return;
+    }
+
     if (!form.title.trim()) {
       toast.error("Please enter a title");
       return;
@@ -123,11 +131,17 @@ export function ResourcesPanel({ materials, onAddMaterial, onDeleteMaterial }: P
       if (!/^https?:\/\//i.test(finalValue)) {
         finalValue = "https://" + finalValue;
       }
+      const sanitizedUrl = safeUrl(finalValue, "");
+      if (!sanitizedUrl) {
+        toast.error("Invalid or unsafe URL format");
+        return;
+      }
+      finalValue = sanitizedUrl;
     }
 
     onAddMaterial({
       subject: targetSubject,
-      title: form.title.trim(),
+      title: titleCheck.sanitized,
       type: form.type,
       value: finalValue,
     });

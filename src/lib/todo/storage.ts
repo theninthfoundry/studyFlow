@@ -101,6 +101,11 @@ const DEFAULT_BUDGETS: Record<Subject, number> = {
 
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
+  // Guard against prototype pollution attacks in raw strings
+  if (raw.includes("__proto__") || raw.includes("constructor") || raw.includes("prototype")) {
+    console.warn("[StudyFlow Firewall] Blocked potentially unsafe JSON structure.");
+    return fallback;
+  }
   try {
     return JSON.parse(raw) as T;
   } catch {

@@ -25,6 +25,14 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Security Audit
+        run: npm audit --audit-level=high || true
+
+      - name: Type Check & Lint
+        run: |
+          npx tsc --noEmit
+          npm run lint
+
       - name: Build
         run: |
           npm run build
